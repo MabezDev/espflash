@@ -471,9 +471,13 @@ impl FlashSettings {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct FlashData {
+    // Should also probably be removed
     pub bootloader: Option<Vec<u8>>,
+    // // ESP-IDF ONLY
     pub partition_table: Option<PartitionTable>,
+    // // ESP-IDF ONLY
     pub partition_table_offset: Option<u32>,
+    // // ESP-IDF ONLY
     pub target_app_partition: Option<String>,
     pub flash_settings: FlashSettings,
     pub min_chip_rev: u16,
