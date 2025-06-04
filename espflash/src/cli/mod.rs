@@ -36,16 +36,10 @@ use crate::{
     connection::reset::{ResetAfterOperation, ResetBeforeOperation},
     error::{Error, MissingPartition, MissingPartitionTable},
     flasher::{
-        FLASH_SECTOR_SIZE,
-        FlashData,
-        FlashFrequency,
-        FlashMode,
-        FlashSettings,
-        FlashSize,
-        Flasher,
+        FLASH_SECTOR_SIZE, FlashData, FlashFrequency, FlashMode, FlashSettings, FlashSize, Flasher,
         ProgressCallbacks,
     },
-    image_format::{ImageFormatKind, Metadata},
+    image_format::Metadata,
     targets::{Chip, XtalFrequency},
 };
 
@@ -140,14 +134,6 @@ pub struct FlashConfigArgs {
 #[non_exhaustive]
 #[group(skip)]
 pub struct FlashArgs {
-    /// Erase partitions by label
-    /// ESP_IDF ONLY
-    #[arg(long, value_name = "LABELS", value_delimiter = ',')]
-    pub erase_parts: Option<Vec<String>>,
-    /// Erase specified data partitions
-    /// ESP_IDF ONLY
-    #[arg(long, value_name = "PARTS", value_enum, value_delimiter = ',')]
-    pub erase_data_parts: Option<Vec<DataType>>,
     /// Open a serial monitor after flashing
     #[arg(short = 'M', long)]
     pub monitor: bool,
@@ -163,6 +149,7 @@ pub struct FlashArgs {
     /// Don't skip flashing of parts with matching checksum
     #[arg(long)]
     pub no_skip: bool,
+    /// TODO
     #[clap(flatten)]
     pub image: ImageArgs,
 }
@@ -227,39 +214,59 @@ pub struct SaveImageArgs {
     /// Don't pad the image to the flash size
     #[arg(long, requires = "merge")]
     pub skip_padding: bool,
-    /// Cristal frequency of the target
+    /// Crystal frequency of the target
     #[arg(long, short = 'x')]
     pub xtal_freq: Option<XtalFrequency>,
     #[clap(flatten)]
     pub image: ImageArgs,
 }
 
+/// TODO: Document
 #[derive(Debug, Args)]
 #[non_exhaustive]
 #[group(skip)]
 pub struct ImageArgs {
-    /// Path to a binary (.bin) bootloader file
-    #[arg(long, value_name = "FILE")]
-    pub bootloader: Option<PathBuf>,
-    /// Path to a CSV file containing partition table
-    ///
-    /// This only applies when using ESP-IDF image format
-    #[arg(long, value_name = "FILE")]
-    pub partition_table: Option<PathBuf>,
-    /// Partition table offset
-    ///
-    /// This only applies when using ESP-IDF image format
-    #[arg(long, value_name = "OFFSET", value_parser = parse_u32)]
-    pub partition_table_offset: Option<u32>,
-    /// Label of target app partition
-    #[arg(long, value_name = "LABEL")]
-    pub target_app_partition: Option<String>,
     /// Minimum chip revision supported by image, in format: major.minor
     #[arg(long, default_value = "0.0", value_parser = parse_chip_rev)]
     pub min_chip_rev: u16,
     /// MMU page size.
     #[arg(long, value_name = "MMU_PAGE_SIZE", value_parser = parse_u32)]
     pub mmu_page_size: Option<u32>,
+}
+
+/// ESP-IDF image format arguments
+#[derive(Debug, Args, Clone)]
+#[non_exhaustive]
+#[group(skip)]
+pub struct EspIdfFormatArgs {
+    /// Path to a binary ESP-IDF bootloader file
+    ///
+    /// This only applies when using ESP-IDF image format
+    #[arg(long, value_name = "FILE")]
+    pub bootloader: Option<Vec<u8>>,
+    /// Path to a CSV file containing partition table
+    ///
+    /// This only applies when using ESP-IDF image format
+    #[arg(long, value_name = "FILE", value_parser = parse_partition_table)]
+    pub partition_table: Option<PartitionTable>,
+    /// Partition table offset
+    ///
+    /// This only applies when using ESP-IDF image format
+    #[arg(long, value_name = "OFFSET", value_parser = parse_u32)]
+    pub partition_table_offset: Option<u32>,
+    /// Label of target app partition
+    ///
+    /// This only applies when using ESP-IDF image format
+    #[arg(long, value_name = "LABEL")]
+    pub target_app_partition: Option<String>,
+    /// Erase partitions by label
+    // TODO: We may need to check if this makes sense in the subcommand
+    #[arg(long, value_name = "LABELS", value_delimiter = ',')]
+    pub erase_parts: Option<Vec<String>>,
+    /// Erase specified data partitions
+    // TODO: We may need to check if this makes sense in the subcommand
+    #[arg(long, value_name = "PARTS", value_enum, value_delimiter = ',')]
+    pub erase_data_parts: Option<Vec<DataType>>,
 }
 
 #[derive(Debug, Args)]
@@ -336,6 +343,7 @@ pub struct ListPortsArgs {
 #[non_exhaustive]
 pub struct WriteBinArgs {
     /// Address or partition label at which to write the binary file
+    /// TODO: Does it makes sense to keep allowing writting to a partititon name? We could remove the partition_table arg too
     #[arg(value_parser = parse_write_target)]
     pub target: WriteTarget,
     /// Path to a CSV file containing partition table, needed to resolve the
@@ -361,6 +369,20 @@ pub struct WriteBinArgs {
 pub enum WriteTarget {
     Address(u32),
     Partition(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum FormatArgs {
+    EspIdf(EspIdfFormatArgs),
+}
+
+/// Parses a bootloader file from a path
+pub fn parse_bootloader(path: &Path) -> Result<Vec<u8>, Error> {
+    // If the '--bootloader' option is provided, load the binary file at the
+    // specified path.
+    fs::canonicalize(path)
+        .and_then(fs::read)
+        .map_err(|e| Error::FileOpenError(path.display().to_string(), e))
 }
 
 /// Parses a string into a [WriteTarget].
@@ -648,7 +670,7 @@ pub fn serial_monitor(args: MonitorArgs, config: &Config) -> Result<()> {
 /// Convert the provided firmware image from ELF to binary
 #[allow(clippy::too_many_arguments)]
 pub fn save_elf_as_image(
-    format: ImageFormatKind,
+    format_args: FormatArgs,
     elf_data: &[u8],
     chip: Chip,
     image_path: PathBuf,
@@ -659,9 +681,13 @@ pub fn save_elf_as_image(
 ) -> Result<()> {
     // To get a chip revision, the connection is needed
     // For simplicity, the revision None is used
-    let image =
-        chip.into_target()
-            .flash_image(format, elf_data, flash_data.clone(), None, xtal_freq)?;
+    let image = chip.into_target().flash_image(
+        format_args,
+        elf_data,
+        flash_data.clone(),
+        None,
+        xtal_freq,
+    )?;
 
     // ESP_IDF ONLY
     let metadata = image.metadata();
@@ -820,7 +846,7 @@ pub fn erase_region(args: EraseRegionArgs, config: &Config) -> Result<()> {
 /// Write an ELF image to a target device's flash
 pub fn flash_elf_image(
     flasher: &mut Flasher,
-    format: ImageFormatKind,
+    format_args: FormatArgs,
     elf_data: &[u8],
     flash_data: FlashData,
     xtal_freq: XtalFrequency,
@@ -828,7 +854,7 @@ pub fn flash_elf_image(
     // Load the ELF data, optionally using the provider bootloader/partition
     // table/image format, to the device's flash memory.
     flasher.load_elf_to_flash(
-        format,
+        format_args,
         elf_data,
         flash_data,
         Some(&mut EspflashProgress::default()),
@@ -938,7 +964,7 @@ pub fn read_flash(args: ReadFlashArgs, config: &Config) -> Result<()> {
 /// Convert and display CSV and binary partition tables
 pub fn partition_table(args: PartitionTableArgs) -> Result<()> {
     if args.to_binary {
-        let table = parse_partition_table(&args.partition_table)?;
+        let table = parse_partition_table(args.partition_table.to_str().unwrap())?;
 
         // Use either stdout or a file if provided for the output.
         let mut writer: Box<dyn Write> = if let Some(output) = args.output {
@@ -975,7 +1001,8 @@ pub fn partition_table(args: PartitionTableArgs) -> Result<()> {
 }
 
 /// Parse a [PartitionTable] from the provided path
-pub fn parse_partition_table(path: &Path) -> Result<PartitionTable, Error> {
+pub fn parse_partition_table(path: &str) -> Result<PartitionTable, Error> {
+    let path = Path::new(path);
     let data = fs::read(path).map_err(|e| Error::FileOpenError(path.display().to_string(), e))?;
 
     Ok(PartitionTable::try_from(data)?)
@@ -1034,30 +1061,29 @@ pub fn make_flash_data(
     image_args: ImageArgs,
     flash_config_args: &FlashConfigArgs,
     config: &Config,
-    default_bootloader: Option<&Path>,
-    default_partition_table: Option<&Path>,
+    format_args: FormatArgs,
 ) -> Result<FlashData, Error> {
-    let bootloader = image_args
-        .bootloader
-        .as_deref()
-        .or(config.project_config.bootloader.as_deref())
-        .or(default_bootloader);
-    let partition_table = image_args
-        .partition_table
-        .as_deref()
-        .or(config.project_config.partition_table.as_deref())
-        .or(default_partition_table);
+    let format_args: FormatArgs = match format_args {
+        FormatArgs::EspIdf(mut esp_idf_format_args) => {
+            if esp_idf_format_args.bootloader.is_none() {
+                let bootloader = config.project_config.bootloader.as_deref();
+                if let Some(path) = bootloader {
+                    let bootloader = parse_bootloader(path)?;
+                    esp_idf_format_args.bootloader = Some(bootloader);
+                }
+            }
 
-    let partition_table_offset = image_args
-        .partition_table_offset
-        .or(config.project_config.partition_table_offset);
+            if esp_idf_format_args.partition_table.is_none() {
+                let config_partition_table = config.project_config.partition_table.as_deref();
+                if let Some(path) = config_partition_table {
+                    let partition_table = parse_partition_table(path.to_str().unwrap())?;
+                    esp_idf_format_args.partition_table = Some(partition_table);
+                }
+            }
 
-    if let Some(path) = &bootloader {
-        println!("Bootloader:        {}", path.display());
-    }
-    if let Some(path) = &partition_table {
-        println!("Partition table:   {}", path.display());
-    }
+            FormatArgs::EspIdf(esp_idf_format_args)
+        }
+    };
 
     let flash_settings = FlashSettings::new(
         flash_config_args
@@ -1070,13 +1096,10 @@ pub fn make_flash_data(
     );
 
     FlashData::new(
-        bootloader,
-        partition_table,
-        partition_table_offset,
-        image_args.target_app_partition,
         flash_settings,
         image_args.min_chip_rev,
         image_args.mmu_page_size,
+        format_args,
     )
 }
 
