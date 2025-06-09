@@ -36,7 +36,13 @@ use crate::{
     connection::reset::{ResetAfterOperation, ResetBeforeOperation},
     error::{Error, MissingPartition, MissingPartitionTable},
     flasher::{
-        FLASH_SECTOR_SIZE, FlashData, FlashFrequency, FlashMode, FlashSettings, FlashSize, Flasher,
+        FLASH_SECTOR_SIZE,
+        FlashData,
+        FlashFrequency,
+        FlashMode,
+        FlashSettings,
+        FlashSize,
+        Flasher,
         ProgressCallbacks,
     },
     image_format::Metadata,
@@ -343,7 +349,8 @@ pub struct ListPortsArgs {
 #[non_exhaustive]
 pub struct WriteBinArgs {
     /// Address or partition label at which to write the binary file
-    /// TODO: Does it makes sense to keep allowing writting to a partititon name? We could remove the partition_table arg too
+    /// TODO: Does it makes sense to keep allowing writting to a partititon
+    /// name? We could remove the partition_table arg too
     #[arg(value_parser = parse_write_target)]
     pub target: WriteTarget,
     /// Path to a CSV file containing partition table, needed to resolve the
@@ -1055,6 +1062,60 @@ fn pretty_print(table: PartitionTable) {
     }
 
     println!("{pretty}");
+}
+
+/// Create FormatArgs from ESP-IDF format args, handling both build context and
+/// erase operations
+///
+/// This unified function supports:
+/// - Loading bootloader/partition table from build context (cargo-espflash use
+///   case)
+/// - Handling erase operations with flasher (espflash use case)
+pub fn create_format_args(
+    format: crate::image_format::ImageFormatKind,
+    mut esp_idf_format_args: EspIdfFormatArgs,
+    flasher: Option<&mut Flasher>,
+    bootloader_path: Option<&Path>,
+    partition_table_path: Option<&Path>,
+) -> Result<FormatArgs> {
+    use crate::image_format::ImageFormatKind;
+
+    match format {
+        ImageFormatKind::EspIdf => {
+            // Load bootloader from build context if not provided and path is available
+            if esp_idf_format_args.bootloader.is_none() {
+                if let Some(bootloader_path) = bootloader_path {
+                    esp_idf_format_args.bootloader =
+                        Some(fs::read(bootloader_path).into_diagnostic()?);
+                }
+            }
+
+            // Load partition table from build context if not provided and path is available
+            if esp_idf_format_args.partition_table.is_none() {
+                if let Some(partition_table_path) = partition_table_path {
+                    esp_idf_format_args.partition_table = Some(parse_partition_table(
+                        partition_table_path.to_str().unwrap(),
+                    )?);
+                }
+            }
+
+            // Handle erase operations if flasher is provided
+            if let Some(flasher) = flasher {
+                if esp_idf_format_args.erase_parts.is_some()
+                    || esp_idf_format_args.erase_data_parts.is_some()
+                {
+                    erase_partitions(
+                        flasher,
+                        esp_idf_format_args.partition_table.clone(),
+                        esp_idf_format_args.erase_parts.clone(),
+                        esp_idf_format_args.erase_data_parts.clone(),
+                    )?;
+                }
+            }
+
+            Ok(FormatArgs::EspIdf(esp_idf_format_args))
+        }
+    }
 }
 
 pub fn make_flash_data(
