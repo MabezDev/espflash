@@ -6,7 +6,7 @@
 
 #[cfg(feature = "serialport")]
 use std::{borrow::Cow, io::Write, path::PathBuf, thread::sleep, time::Duration};
-use std::{collections::HashMap, fmt, fs, str::FromStr};
+use std::{collections::HashMap, fmt, fs::OpenOptions, str::FromStr};
 
 #[cfg(feature = "serialport")]
 use log::{debug, info, warn};
@@ -25,19 +25,23 @@ pub(crate) use self::stubs::{FLASH_SECTOR_SIZE, FLASH_WRITE_SIZE};
 pub use crate::targets::flash_target::ProgressCallbacks;
 use crate::{
     Error,
-    cli::FormatArgs,
+    image_format::ImageFormatArgs,
     targets::{Chip, XtalFrequency},
 };
 #[cfg(feature = "serialport")]
 use crate::{
     connection::{
-        Connection, Port,
+        Connection,
+        Port,
         command::{Command, CommandType},
         reset::{ResetAfterOperation, ResetBeforeOperation},
     },
     error::{ConnectionError, ResultExt as _},
     flasher::stubs::{
-        CHIP_DETECT_MAGIC_REG_ADDR, DEFAULT_TIMEOUT, EXPECTED_STUB_HANDSHAKE, FlashStub,
+        CHIP_DETECT_MAGIC_REG_ADDR,
+        DEFAULT_TIMEOUT,
+        EXPECTED_STUB_HANDSHAKE,
+        FlashStub,
     },
     image_format::{Segment, ram_segments, rom_segments},
 };
@@ -469,7 +473,7 @@ pub struct FlashData {
     pub flash_settings: FlashSettings,
     pub min_chip_rev: u16,
     pub mmu_page_size: Option<u32>,
-    pub format_args: FormatArgs,
+    pub format_args: ImageFormatArgs,
 }
 
 impl FlashData {
@@ -477,7 +481,7 @@ impl FlashData {
         flash_settings: FlashSettings,
         min_chip_rev: u16,
         mmu_page_size: Option<u32>,
-        format_args: FormatArgs,
+        format_args: ImageFormatArgs,
     ) -> Result<Self, Error> {
         Ok(FlashData {
             flash_settings,
@@ -1017,7 +1021,6 @@ impl Flasher {
     /// Load an ELF image to flash and execute it
     pub fn load_elf_to_flash(
         &mut self,
-        format_args: FormatArgs,
         elf_data: &[u8],
         flash_data: FlashData,
         mut progress: Option<&mut dyn ProgressCallbacks>,
@@ -1034,13 +1037,10 @@ impl Flasher {
                 .chip_revision(&mut self.connection)?,
         );
 
-        let image = self.chip.into_target().flash_image(
-            format_args,
-            elf_data,
-            flash_data,
-            chip_revision,
-            xtal_freq,
-        )?;
+        let image =
+            self.chip
+                .into_target()
+                .flash_image(elf_data, flash_data, chip_revision, xtal_freq)?;
 
         // When the `cli` feature is enabled, display the image size information.
         #[cfg(feature = "cli")]
@@ -1209,7 +1209,7 @@ impl Flasher {
 
         let mut data: Vec<u8> = Vec::new();
 
-        let mut file = fs::OpenOptions::new()
+        let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
@@ -1265,7 +1265,7 @@ impl Flasher {
 
         let mut data = Vec::new();
 
-        let mut file = fs::OpenOptions::new()
+        let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
