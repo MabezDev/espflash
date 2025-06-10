@@ -11,6 +11,7 @@
 //! [espflash]: https://crates.io/crates/espflash
 
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs::{self, File},
     io::{Read, Write},
@@ -46,7 +47,13 @@ use crate::{
         Flasher,
         ProgressCallbacks,
     },
-    image_format::{ImageFormatArgs, ImageFormatKind, Metadata, esp_idf::parse_partition_table},
+    image_format::{
+        IdfBootloaderFormat,
+        ImageFormat,
+        ImageFormatKind,
+        Metadata,
+        esp_idf::{bootloader, parse_partition_table},
+    },
     targets::{Chip, XtalFrequency},
 };
 
@@ -633,14 +640,14 @@ pub fn serial_monitor(args: MonitorArgs, config: &Config) -> Result<()> {
 
     let mut monitor_args = args.monitor_args;
 
-    // The 26MHz ESP32-C2's need to be treated as a special case.
-    if chip == Chip::Esp32c2
-        && target.crystal_freq(flasher.connection())? == XtalFrequency::_26Mhz
-        && monitor_args.monitor_baud == 115_200
-    {
-        // 115_200 * 26 MHz / 40 MHz = 74_880
-        monitor_args.monitor_baud = 74_880;
-    }
+    // // The 26MHz ESP32-C2's need to be treated as a special case.
+    // if chip == Chip::Esp32c2
+    //     && target.crystal_freq(flasher.connection())? == XtalFrequency::_26Mhz
+    //     && monitor_args.monitor_baud == 115_200
+    // {
+    //     // 115_200 * 26 MHz / 40 MHz = 74_880
+    //     monitor_args.monitor_baud = 74_880;
+    // }
 
     monitor(flasher.into_serial(), elf.as_deref(), pid, monitor_args)
 }
@@ -823,13 +830,21 @@ pub fn flash_elf_image(
     flash_data: FlashData,
     xtal_freq: XtalFrequency,
 ) -> Result<()> {
+    let image = ImageFormat::EspIdf(IdfBootloaderFormat::new(
+        elf_data,
+        flasher.chip(),
+        flash_data,
+        // TODO get the defaults for these
+        /* partition_table,
+        partition_table_offset,
+        bootloader, */
+    ));
+
     // Load the ELF data, optionally using the provider bootloader/partition
     // table/image format, to the device's flash memory.
     flasher.load_elf_to_flash(
-        elf_data,
-        flash_data,
+        image,
         Some(&mut EspflashProgress::default()),
-        xtal_freq,
     )?;
     info!("Flashing has completed!");
 
@@ -1020,7 +1035,10 @@ fn pretty_print(table: PartitionTable) {
     println!("{pretty}");
 }
 
-pub fn make_flash_data(
+pub fn make_flash_data<'a>(
+    elf_data: &'a [u8],
+    chip: Chip,
+    xtal_freq: XtalFrequency,
     image_args: ImageArgs,
     flash_config_args: &FlashConfigArgs,
     config: &Config,
@@ -1028,8 +1046,8 @@ pub fn make_flash_data(
     esp_idf_format_args: Option<EspIdfFormatArgs>,
     build_ctx_bootloader: Option<PathBuf>,
     build_ctx_partition_table: Option<PathBuf>,
-) -> Result<FlashData, Error> {
-    let format_args = match image_format_kind {
+) -> Result<ImageFormat<'a>, Error> {
+    Ok(match image_format_kind {
         ImageFormatKind::EspIdf => {
             let mut args = esp_idf_format_args.unwrap_or_default();
 
@@ -1053,27 +1071,51 @@ pub fn make_flash_data(
                     .or(build_ctx_partition_table);
             }
 
-            ImageFormatArgs::EspIdf(args)
+            let partition_table = if let Some(partition_table_path) = args.partition_table {
+                parse_partition_table(partition_table_path.to_str().unwrap())?
+            } else {
+                // TODO requires more data on `Chip`, i.e default app_addr and size
+                todo!("default partition table generation");
+                // default_partition_table(
+                //     app_addr,
+                //     app_size,
+                //     args.flash_settings.size.map(|v| v.size()),
+                // )
+            };
+
+            let bootloader = if let Some(bootloader_path) = args.bootloader {
+                let bootloader = fs::read(bootloader_path)?;
+                Cow::Owned(bootloader)
+            } else {
+                let default_bootloader = bootloader(chip, xtal_freq)?;
+                Cow::Borrowed(default_bootloader)
+            };
+
+            // Create flash settings from config args or config file
+            let flash_settings = FlashSettings::new(
+                flash_config_args
+                    .flash_mode
+                    .or(config.project_config.flash.mode),
+                flash_config_args.flash_size,
+                flash_config_args
+                    .flash_freq
+                    .or(config.project_config.flash.freq),
+            );
+
+            ImageFormat::EspIdf(IdfBootloaderFormat::new(
+                elf_data,
+                chip,
+                FlashData::new(
+                    flash_settings,
+                    image_args.min_chip_rev,
+                    image_args.mmu_page_size,
+                )?,
+                partition_table,
+                0x1000, // TODO take from CLI override
+                bootloader,
+            )?)
         }
-    };
-
-    // Create flash settings from config args or config file
-    let flash_settings = FlashSettings::new(
-        flash_config_args
-            .flash_mode
-            .or(config.project_config.flash.mode),
-        flash_config_args.flash_size,
-        flash_config_args
-            .flash_freq
-            .or(config.project_config.flash.freq),
-    );
-
-    FlashData::new(
-        flash_settings,
-        image_args.min_chip_rev,
-        image_args.mmu_page_size,
-        format_args,
-    )
+    })
 }
 
 /// Write a binary to the flash memory of a target device
@@ -1111,13 +1153,13 @@ pub fn write_bin(args: WriteBinArgs, config: &Config) -> Result<()> {
         let pid = flasher.usb_pid();
         let mut monitor_args = args.monitor_args;
 
-        if chip == Chip::Esp32c2
-            && target_xtal_freq == XtalFrequency::_26Mhz
-            && monitor_args.monitor_baud == 115_200
-        {
-            // 115_200 * 26 MHz / 40 MHz = 74_880
-            monitor_args.monitor_baud = 74_880;
-        }
+        // if chip == Chip::Esp32c2
+        //     && target_xtal_freq == XtalFrequency::_26Mhz
+        //     && monitor_args.monitor_baud == 115_200
+        // {
+        //     // 115_200 * 26 MHz / 40 MHz = 74_880
+        //     monitor_args.monitor_baud = 74_880;
+        // }
 
         monitor(flasher.into_serial(), None, pid, monitor_args)?;
     }

@@ -22,7 +22,6 @@ use crate::{
     Error,
     error::AppDescriptorError,
     flasher::{FlashData, FlashFrequency, FlashMode, FlashSize},
-    image_format::ImageFormatArgs,
     targets::{Chip, XtalFrequency},
 };
 
@@ -72,39 +71,39 @@ pub(crate) fn bootloader(chip: Chip, xtal_freq: XtalFrequency) -> Result<&'stati
             XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32_40MHZ),
             _ => Err(error),
         },
-        Chip::Esp32c2 => match xtal_freq {
-            XtalFrequency::_26Mhz => Ok(BOOTLOADER_ESP32C2_26MHZ),
-            XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32C2_40MHZ),
-            _ => Err(error),
-        },
-        Chip::Esp32c3 => match xtal_freq {
-            XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32C3),
-            _ => Err(error),
-        },
-        Chip::Esp32c5 => match xtal_freq {
-            XtalFrequency::_40Mhz | XtalFrequency::_48Mhz => Ok(BOOTLOADER_ESP32C5),
-            _ => Err(error),
-        },
-        Chip::Esp32c6 => match xtal_freq {
-            XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32C6),
-            _ => Err(error),
-        },
-        Chip::Esp32h2 => match xtal_freq {
-            XtalFrequency::_32Mhz => Ok(BOOTLOADER_ESP32H2),
-            _ => Err(error),
-        },
-        Chip::Esp32p4 => match xtal_freq {
-            XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32P4),
-            _ => Err(error),
-        },
-        Chip::Esp32s2 => match xtal_freq {
-            XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32S2),
-            _ => Err(error),
-        },
-        Chip::Esp32s3 => match xtal_freq {
-            XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32S3),
-            _ => Err(error),
-        },
+        // Chip::Esp32c2 => match xtal_freq {
+        //     XtalFrequency::_26Mhz => Ok(BOOTLOADER_ESP32C2_26MHZ),
+        //     XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32C2_40MHZ),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32c3 => match xtal_freq {
+        //     XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32C3),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32c5 => match xtal_freq {
+        //     XtalFrequency::_40Mhz | XtalFrequency::_48Mhz => Ok(BOOTLOADER_ESP32C5),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32c6 => match xtal_freq {
+        //     XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32C6),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32h2 => match xtal_freq {
+        //     XtalFrequency::_32Mhz => Ok(BOOTLOADER_ESP32H2),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32p4 => match xtal_freq {
+        //     XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32P4),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32s2 => match xtal_freq {
+        //     XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32S2),
+        //     _ => Err(error),
+        // },
+        // Chip::Esp32s3 => match xtal_freq {
+        //     XtalFrequency::_40Mhz => Ok(BOOTLOADER_ESP32S3),
+        //     _ => Err(error),
+        // },
     }
 }
 
@@ -243,29 +242,15 @@ pub struct IdfBootloaderFormat<'a> {
 }
 
 impl<'a> IdfBootloaderFormat<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         elf_data: &'a [u8],
         chip: Chip,
         flash_data: FlashData,
-        xtal_freq: XtalFrequency,
-        app_addr: u32,
-        app_size: u32,
-        flash_freq: FlashFrequency,
+        partition_table: PartitionTable,
+        partition_table_offset: Option<u32>,
+        mut bootloader: Cow<'a, [u8]>
     ) -> Result<Self, Error> {
         let elf = ElfFile::parse(elf_data)?;
-
-        let ImageFormatArgs::EspIdf(esp_idf_args) = flash_data.format_args;
-
-        let partition_table = if let Some(partition_table_path) = esp_idf_args.partition_table {
-            parse_partition_table(partition_table_path.to_str().unwrap())?
-        } else {
-            default_partition_table(
-                app_addr,
-                app_size,
-                flash_data.flash_settings.size.map(|v| v.size()),
-            )
-        };
 
         if partition_table
             .partitions()
@@ -278,14 +263,6 @@ impl<'a> IdfBootloaderFormat<'a> {
                 flash_data.flash_settings.size.unwrap_or_default(),
             ));
         }
-
-        let mut bootloader = if let Some(bootloader_path) = esp_idf_args.bootloader {
-            let bootloader = fs::read(bootloader_path)?;
-            Cow::Owned(bootloader)
-        } else {
-            let default_bootloader = bootloader(chip, xtal_freq)?;
-            Cow::Borrowed(default_bootloader)
-        };
 
         // fetch the generated header from the bootloader
         let mut calc_bootloader_size = 0;
@@ -311,7 +288,9 @@ impl<'a> IdfBootloaderFormat<'a> {
 
         header.write_flash_config(
             flash_data.flash_settings.size.unwrap_or_default(),
-            flash_data.flash_settings.freq.unwrap_or(flash_freq),
+            flash_data.flash_settings.freq.unwrap_or(
+                FlashFrequency::default(),
+            ),
             chip,
         )?;
 
@@ -514,12 +493,12 @@ impl<'a> IdfBootloaderFormat<'a> {
 
         let target_app_partition: Partition =
         // Use the target app partition if provided
-        if let Some(ref target_partition) = esp_idf_args.target_app_partition {
-            partition_table
-                .find(target_partition.as_str())
-                .ok_or(Error::AppPartitionNotFound)?
-                .clone()
-        } else {
+        // if let Some(ref target_partition) = esp_idf_args.target_app_partition {
+        //     partition_table
+        //         .find(target_partition.as_str())
+        //         .ok_or(Error::AppPartitionNotFound)?
+        //         .clone()
+        // } else {
             // The default partition table contains the "factory" partition, and if a user
             // provides a partition table via command-line then the validation step confirms
             // that at least one "app" partition is present. We prefer the "factory"
@@ -528,8 +507,8 @@ impl<'a> IdfBootloaderFormat<'a> {
                 .find("factory")
                 .or_else(|| partition_table.find_by_type(Type::App))
                 .ok_or(Error::AppPartitionNotFound)?
-                .clone()
-        };
+                .clone();
+        // };
 
         let app_size = data.len() as u32;
         let partition_table_size = target_app_partition.size();
@@ -548,7 +527,7 @@ impl<'a> IdfBootloaderFormat<'a> {
         // If the user did not specify a partition offset, we need to assume that the
         // partition offset is (first partition offset) - 0x1000, since this is
         // the most common case.
-        let partition_table_offset = esp_idf_args.partition_table_offset.unwrap_or_else(|| {
+        let partition_table_offset = partition_table_offset.unwrap_or_else(|| {
             let partitions = partition_table.partitions();
             let first_partition = partitions
                 .iter()
@@ -615,7 +594,7 @@ impl<'a> IdfBootloaderFormat<'a> {
 ///
 /// `flash_size` is used to scale app partition when present, otherwise the
 /// parameter defaults are used.
-fn default_partition_table(
+pub fn default_partition_table(
     app_addr: u32,
     app_size: u32,
     flash_size: Option<u32>,
@@ -786,19 +765,19 @@ where
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_flash_config_write() {
-        let mut header = ImageHeader::default();
-        header
-            .write_flash_config(FlashSize::_4Mb, FlashFrequency::_40Mhz, Chip::Esp32c3)
-            .unwrap();
-        assert_eq!(header.flash_config, 0x20);
+    // #[test]
+    // fn test_flash_config_write() {
+    //     let mut header = ImageHeader::default();
+    //     header
+    //         .write_flash_config(FlashSize::_4Mb, FlashFrequency::_40Mhz, Chip::Esp32c3)
+    //         .unwrap();
+    //     assert_eq!(header.flash_config, 0x20);
 
-        header
-            .write_flash_config(FlashSize::_32Mb, FlashFrequency::_80Mhz, Chip::Esp32s3)
-            .unwrap();
-        assert_eq!(header.flash_config, 0x5F);
-    }
+    //     header
+    //         .write_flash_config(FlashSize::_32Mb, FlashFrequency::_80Mhz, Chip::Esp32s3)
+    //         .unwrap();
+    //     assert_eq!(header.flash_config, 0x5F);
+    // }
 
     #[test]
     fn test_encode_hex() {

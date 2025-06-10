@@ -263,6 +263,9 @@ fn flash(args: FlashArgs, config: &Config) -> Result<()> {
         flasher.load_elf_to_ram(&elf_data, Some(&mut EspflashProgress::default()))?;
     } else {
         let flash_data = make_flash_data(
+            &elf_data,
+            chip,
+            target_xtal_freq,
             args.flash_args.image,
             &flash_config,
             config,
@@ -296,46 +299,46 @@ fn flash(args: FlashArgs, config: &Config) -> Result<()> {
 }
 
 fn save_image(args: SaveImageArgs, config: &Config) -> Result<()> {
-    let elf_data = fs::read(&args.image)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("Failed to open image {}", args.image.display()))?;
+    todo!();
+    // let elf_data = fs::read(&args.image)
+    //     .into_diagnostic()
+    //     .wrap_err_with(|| format!("Failed to open image {}", args.image.display()))?;
 
-    // Since we have no `Flasher` instance and as such cannot print the board
-    // information, we will print whatever information we _do_ have.
-    println!("Chip type:         {}", args.save_image_args.chip);
-    println!("Merge:             {}", args.save_image_args.merge);
-    println!("Skip padding:      {}", args.save_image_args.skip_padding);
+    // // Since we have no `Flasher` instance and as such cannot print the board
+    // // information, we will print whatever information we _do_ have.
+    // println!("Chip type:         {}", args.save_image_args.chip);
+    // println!("Merge:             {}", args.save_image_args.merge);
+    // println!("Skip padding:      {}", args.save_image_args.skip_padding);
 
-    let mut flash_config = args.flash_config_args;
-    flash_config.flash_size = flash_config
-        .flash_size // Use CLI argument if provided
-        .or(config.project_config.flash.size) // If no CLI argument, try the config file
-        .or_else(|| Some(FlashSize::default())); // Otherwise, use a reasonable default value
+    // let mut flash_config = args.flash_config_args;
+    // flash_config.flash_size = flash_config
+    //     .flash_size // Use CLI argument if provided
+    //     .or(config.project_config.flash.size) // If no CLI argument, try the config file
+    //     .or_else(|| Some(FlashSize::default())); // Otherwise, use a reasonable default value
 
-    let flash_data = make_flash_data(
-        args.save_image_args.image,
-        &flash_config,
-        config,
-        args.format,
-        Some(args.esp_idf_format_args),
-        None,
-        None,
-    )?;
+    // let flash_data = make_flash_data(
+    //     args.save_image_args.image,
+    //     args.save_image_args.chip,
+    //     args.save_image_args.chip.crystal_freq()?,
+    //     &flash_config,
+    //     config,
+    //     args.format,
+    // )?;
 
-    let xtal_freq = args
-        .save_image_args
-        .xtal_freq
-        .unwrap_or(XtalFrequency::default(args.save_image_args.chip));
+    // let xtal_freq = args
+    //     .save_image_args
+    //     .xtal_freq
+    //     .unwrap_or(XtalFrequency::default(args.save_image_args.chip));
 
-    save_elf_as_image(
-        &elf_data,
-        args.save_image_args.chip,
-        args.save_image_args.file,
-        flash_data,
-        args.save_image_args.merge,
-        args.save_image_args.skip_padding,
-        xtal_freq,
-    )?;
+    // save_elf_as_image(
+    //     &elf_data,
+    //     args.save_image_args.chip,
+    //     args.save_image_args.file,
+    //     flash_data,
+    //     args.save_image_args.merge,
+    //     args.save_image_args.skip_padding,
+    //     xtal_freq,
+    // )?;
 
     Ok(())
 }

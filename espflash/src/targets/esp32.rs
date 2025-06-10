@@ -6,7 +6,7 @@ use crate::connection::Connection;
 use crate::{
     Error,
     flasher::{FlashData, FlashFrequency},
-    image_format::{IdfBootloaderFormat, ImageFormat, ImageFormatArgs},
+    image_format::{IdfBootloaderFormat, ImageFormat},
 };
 
 pub(crate) const CHIP_ID: u16 = 0;
@@ -170,20 +170,14 @@ impl Target for Esp32 {
         _chip_revision: Option<(u32, u32)>,
         xtal_freq: XtalFrequency,
     ) -> Result<ImageFormat<'a>, Error> {
-        match &flash_data.format_args {
-            ImageFormatArgs::EspIdf(_) => {
-                let idf = IdfBootloaderFormat::new(
-                    elf_data,
-                    Chip::Esp32,
-                    flash_data,
-                    xtal_freq,
-                    0x1_0000,
-                    0x3f_0000,
-                    FlashFrequency::_40Mhz,
-                )?;
-                Ok(idf.into())
-            }
-        }
+        Ok(ImageFormat::EspIdf(IdfBootloaderFormat::new(
+            elf_data,
+            Chip::Esp32,
+            flash_data,
+            xtal_freq,
+            0x1_0000,
+            FlashFrequency::_40Mhz,
+        )?))
     }
 
     fn spi_registers(&self) -> SpiRegisters {

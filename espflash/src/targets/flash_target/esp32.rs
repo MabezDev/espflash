@@ -77,57 +77,57 @@ impl FlashTarget for Esp32Target {
         //       explicitly disable the watchdog here.
         if connection.is_using_usb_serial_jtag() {
             match self.chip {
-                Chip::Esp32c3 => {
-                    connection.command(Command::WriteReg {
-                        address: 0x6000_80a8,
-                        value: 0x50D8_3AA1,
-                        mask: None,
-                    })?; // WP disable
-                    connection.command(Command::WriteReg {
-                        address: 0x6000_8090,
-                        value: 0x0,
-                        mask: None,
-                    })?; // turn off RTC WDT
-                    connection.command(Command::WriteReg {
-                        address: 0x6000_80a8,
-                        value: 0x0,
-                        mask: None,
-                    })?; // WP enable
-                }
-                Chip::Esp32s3 => {
-                    connection.command(Command::WriteReg {
-                        address: 0x6000_80B0,
-                        value: 0x50D8_3AA1,
-                        mask: None,
-                    })?; // WP disable
-                    connection.command(Command::WriteReg {
-                        address: 0x6000_8098,
-                        value: 0x0,
-                        mask: None,
-                    })?; // turn off RTC WDT
-                    connection.command(Command::WriteReg {
-                        address: 0x6000_80B0,
-                        value: 0x0,
-                        mask: None,
-                    })?; // WP enable
-                }
-                Chip::Esp32c6 => {
-                    connection.command(Command::WriteReg {
-                        address: 0x600B_1C18,
-                        value: 0x50D8_3AA1,
-                        mask: None,
-                    })?; // WP disable
-                    connection.command(Command::WriteReg {
-                        address: 0x600B_1C00,
-                        value: 0x0,
-                        mask: None,
-                    })?; // turn off RTC WDT
-                    connection.command(Command::WriteReg {
-                        address: 0x600B_1C18,
-                        value: 0x0,
-                        mask: None,
-                    })?; // WP enable
-                }
+                // Chip::Esp32c3 => {
+                //     connection.command(Command::WriteReg {
+                //         address: 0x6000_80a8,
+                //         value: 0x50D8_3AA1,
+                //         mask: None,
+                //     })?; // WP disable
+                //     connection.command(Command::WriteReg {
+                //         address: 0x6000_8090,
+                //         value: 0x0,
+                //         mask: None,
+                //     })?; // turn off RTC WDT
+                //     connection.command(Command::WriteReg {
+                //         address: 0x6000_80a8,
+                //         value: 0x0,
+                //         mask: None,
+                //     })?; // WP enable
+                // }
+                // Chip::Esp32s3 => {
+                //     connection.command(Command::WriteReg {
+                //         address: 0x6000_80B0,
+                //         value: 0x50D8_3AA1,
+                //         mask: None,
+                //     })?; // WP disable
+                //     connection.command(Command::WriteReg {
+                //         address: 0x6000_8098,
+                //         value: 0x0,
+                //         mask: None,
+                //     })?; // turn off RTC WDT
+                //     connection.command(Command::WriteReg {
+                //         address: 0x6000_80B0,
+                //         value: 0x0,
+                //         mask: None,
+                //     })?; // WP enable
+                // }
+                // Chip::Esp32c6 => {
+                //     connection.command(Command::WriteReg {
+                //         address: 0x600B_1C18,
+                //         value: 0x50D8_3AA1,
+                //         mask: None,
+                //     })?; // WP disable
+                //     connection.command(Command::WriteReg {
+                //         address: 0x600B_1C00,
+                //         value: 0x0,
+                //         mask: None,
+                //     })?; // turn off RTC WDT
+                //     connection.command(Command::WriteReg {
+                //         address: 0x600B_1C18,
+                //         value: 0x0,
+                //         mask: None,
+                //     })?; // WP enable
+                // }
                 _ => {}
             }
         }

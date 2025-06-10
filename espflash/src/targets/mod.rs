@@ -13,14 +13,14 @@ use strum::{Display, EnumIter, EnumString, VariantNames};
 pub use self::flash_target::{Esp32Target, RamTarget};
 use self::{
     esp32::Esp32,
-    esp32c2::Esp32c2,
-    esp32c3::Esp32c3,
-    esp32c5::Esp32c5,
-    esp32c6::Esp32c6,
-    esp32h2::Esp32h2,
-    esp32p4::Esp32p4,
-    esp32s2::Esp32s2,
-    esp32s3::Esp32s3,
+    // esp32c2::Esp32c2,
+    // esp32c3::Esp32c3,
+    // esp32c5::Esp32c5,
+    // esp32c6::Esp32c6,
+    // esp32h2::Esp32h2,
+    // esp32p4::Esp32p4,
+    // esp32s2::Esp32s2,
+    // esp32s3::Esp32s3,
 };
 use crate::{
     Error,
@@ -39,14 +39,14 @@ use crate::{
 
 mod efuse;
 mod esp32;
-mod esp32c2;
-mod esp32c3;
-mod esp32c5;
-mod esp32c6;
-mod esp32h2;
-mod esp32p4;
-mod esp32s2;
-mod esp32s3;
+// mod esp32c2;
+// mod esp32c3;
+// mod esp32c5;
+// mod esp32c6;
+// mod esp32h2;
+// mod esp32p4;
+// mod esp32s2;
+// mod esp32s3;
 
 #[cfg(feature = "serialport")]
 pub(crate) mod flash_target;
@@ -94,44 +94,44 @@ impl XtalFrequency {
 pub enum Chip {
     /// ESP32
     Esp32,
-    /// ESP32-C2, ESP8684
-    Esp32c2,
-    /// ESP32-C3, ESP8685
-    Esp32c3,
-    /// ESP32-C5
-    Esp32c5,
-    /// ESP32-C6
-    Esp32c6,
-    /// ESP32-H2
-    Esp32h2,
-    /// ESP32-P4
-    Esp32p4,
-    /// ESP32-S2
-    Esp32s2,
-    /// ESP32-S3
-    Esp32s3,
+    // /// ESP32-C2, ESP8684
+    // Esp32c2,
+    // /// ESP32-C3, ESP8685
+    // Esp32c3,
+    // /// ESP32-C5
+    // Esp32c5,
+    // /// ESP32-C6
+    // Esp32c6,
+    // /// ESP32-H2
+    // Esp32h2,
+    // /// ESP32-P4
+    // Esp32p4,
+    // /// ESP32-S2
+    // Esp32s2,
+    // /// ESP32-S3
+    // Esp32s3,
 }
 
 impl Chip {
     pub fn from_magic(magic: u32) -> Result<Self, Error> {
         if Esp32::has_magic_value(magic) {
             Ok(Chip::Esp32)
-        } else if Esp32c2::has_magic_value(magic) {
-            Ok(Chip::Esp32c2)
-        } else if Esp32c3::has_magic_value(magic) {
-            Ok(Chip::Esp32c3)
-        } else if Esp32c5::has_magic_value(magic) {
-            Ok(Chip::Esp32c5)
-        } else if Esp32c6::has_magic_value(magic) {
-            Ok(Chip::Esp32c6)
-        } else if Esp32h2::has_magic_value(magic) {
-            Ok(Chip::Esp32h2)
-        } else if Esp32p4::has_magic_value(magic) {
-            Ok(Chip::Esp32p4)
-        } else if Esp32s2::has_magic_value(magic) {
-            Ok(Chip::Esp32s2)
-        } else if Esp32s3::has_magic_value(magic) {
-            Ok(Chip::Esp32s3)
+        // } else if Esp32c2::has_magic_value(magic) {
+        //     Ok(Chip::Esp32c2)
+        // } else if Esp32c3::has_magic_value(magic) {
+        //     Ok(Chip::Esp32c3)
+        // } else if Esp32c5::has_magic_value(magic) {
+        //     Ok(Chip::Esp32c5)
+        // } else if Esp32c6::has_magic_value(magic) {
+        //     Ok(Chip::Esp32c6)
+        // } else if Esp32h2::has_magic_value(magic) {
+        //     Ok(Chip::Esp32h2)
+        // } else if Esp32p4::has_magic_value(magic) {
+        //     Ok(Chip::Esp32p4)
+        // } else if Esp32s2::has_magic_value(magic) {
+        //     Ok(Chip::Esp32s2)
+        // } else if Esp32s3::has_magic_value(magic) {
+        //     Ok(Chip::Esp32s3)
         } else {
             Err(Error::ChipDetectError(format!(
                 "unrecognized magic value: {magic:#x}"
@@ -142,38 +142,38 @@ impl Chip {
     pub fn id(&self) -> u16 {
         match self {
             Chip::Esp32 => esp32::CHIP_ID,
-            Chip::Esp32c2 => esp32c2::CHIP_ID,
-            Chip::Esp32c3 => esp32c3::CHIP_ID,
-            Chip::Esp32c5 => esp32c5::CHIP_ID,
-            Chip::Esp32c6 => esp32c6::CHIP_ID,
-            Chip::Esp32h2 => esp32h2::CHIP_ID,
-            Chip::Esp32p4 => esp32p4::CHIP_ID,
-            Chip::Esp32s2 => esp32s2::CHIP_ID,
-            Chip::Esp32s3 => esp32s3::CHIP_ID,
+            // Chip::Esp32c2 => esp32c2::CHIP_ID,
+            // Chip::Esp32c3 => esp32c3::CHIP_ID,
+            // Chip::Esp32c5 => esp32c5::CHIP_ID,
+            // Chip::Esp32c6 => esp32c6::CHIP_ID,
+            // Chip::Esp32h2 => esp32h2::CHIP_ID,
+            // Chip::Esp32p4 => esp32p4::CHIP_ID,
+            // Chip::Esp32s2 => esp32s2::CHIP_ID,
+            // Chip::Esp32s3 => esp32s3::CHIP_ID,
         }
     }
 
     pub fn into_target(&self) -> Box<dyn Target> {
         match self {
             Chip::Esp32 => Box::new(Esp32),
-            Chip::Esp32c2 => Box::new(Esp32c2),
-            Chip::Esp32c3 => Box::new(Esp32c3),
-            Chip::Esp32c5 => Box::new(Esp32c5),
-            Chip::Esp32c6 => Box::new(Esp32c6),
-            Chip::Esp32h2 => Box::new(Esp32h2),
-            Chip::Esp32p4 => Box::new(Esp32p4),
-            Chip::Esp32s2 => Box::new(Esp32s2),
-            Chip::Esp32s3 => Box::new(Esp32s3),
+            // Chip::Esp32c2 => Box::new(Esp32c2),
+            // Chip::Esp32c3 => Box::new(Esp32c3),
+            // Chip::Esp32c5 => Box::new(Esp32c5),
+            // Chip::Esp32c6 => Box::new(Esp32c6),
+            // Chip::Esp32h2 => Box::new(Esp32h2),
+            // Chip::Esp32p4 => Box::new(Esp32p4),
+            // Chip::Esp32s2 => Box::new(Esp32s2),
+            // Chip::Esp32s3 => Box::new(Esp32s3),
         }
     }
 
     #[cfg(feature = "serialport")]
     pub(crate) fn into_rtc_wdt_reset(self) -> Result<Box<dyn RtcWdtReset>, Error> {
         match self {
-            Chip::Esp32c3 => Ok(Box::new(Esp32c3)),
-            Chip::Esp32p4 => Ok(Box::new(Esp32p4)),
-            Chip::Esp32s2 => Ok(Box::new(Esp32s2)),
-            Chip::Esp32s3 => Ok(Box::new(Esp32s3)),
+            // Chip::Esp32c3 => Ok(Box::new(Esp32c3)),
+            // Chip::Esp32p4 => Ok(Box::new(Esp32p4)),
+            // Chip::Esp32s2 => Ok(Box::new(Esp32s2)),
+            // Chip::Esp32s3 => Ok(Box::new(Esp32s3)),
             _ => Err(Error::UnsupportedFeature {
                 chip: self,
                 feature: "RTC WDT reset".into(),
@@ -184,9 +184,9 @@ impl Chip {
     #[cfg(feature = "serialport")]
     pub(crate) fn into_usb_otg(self) -> Result<Box<dyn UsbOtg>, Error> {
         match self {
-            Chip::Esp32p4 => Ok(Box::new(Esp32p4)),
-            Chip::Esp32s2 => Ok(Box::new(Esp32s2)),
-            Chip::Esp32s3 => Ok(Box::new(Esp32s3)),
+            // Chip::Esp32p4 => Ok(Box::new(Esp32p4)),
+            // Chip::Esp32s2 => Ok(Box::new(Esp32s2)),
+            // Chip::Esp32s3 => Ok(Box::new(Esp32s3)),
             _ => Err(Error::UnsupportedFeature {
                 chip: self,
                 feature: "USB OTG".into(),
@@ -196,8 +196,8 @@ impl Chip {
 
     pub fn valid_mmu_page_sizes(self) -> Option<&'static [u32]> {
         match self {
-            Chip::Esp32c2 => Some(&[16 * 1024, 32 * 1024, 64 * 1024]),
-            Chip::Esp32c6 | Chip::Esp32h2 => Some(&[8 * 1024, 16 * 1024, 32 * 1024, 64 * 1024]),
+            // Chip::Esp32c2 => Some(&[16 * 1024, 32 * 1024, 64 * 1024]),
+            // Chip::Esp32c6 | Chip::Esp32h2 => Some(&[8 * 1024, 16 * 1024, 32 * 1024, 64 * 1024]),
             // TODO: Verify this is correct for Esp32c5
             _ => None,
         }
@@ -205,9 +205,9 @@ impl Chip {
 
     pub fn boot_address(&self) -> u32 {
         match self {
-            Chip::Esp32c2 | Chip::Esp32c3 | Chip::Esp32c6 | Chip::Esp32h2 | Chip::Esp32s3 => 0x0,
-            Chip::Esp32 | Chip::Esp32s2 => 0x1000,
-            Chip::Esp32c5 | Chip::Esp32p4 => 0x2000,
+            // Chip::Esp32c2 | Chip::Esp32c3 | Chip::Esp32c6 | Chip::Esp32h2 | Chip::Esp32s3 => 0x0,
+            Chip::Esp32 /* | Chip::Esp32s2 */ => 0x1000,
+            // Chip::Esp32c5 | Chip::Esp32p4 => 0x2000,
         }
     }
 
@@ -238,14 +238,14 @@ impl TryFrom<u16> for Chip {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
             esp32::CHIP_ID => Ok(Chip::Esp32),
-            esp32c2::CHIP_ID => Ok(Chip::Esp32c2),
-            esp32c3::CHIP_ID => Ok(Chip::Esp32c3),
-            esp32c5::CHIP_ID => Ok(Chip::Esp32c5),
-            esp32c6::CHIP_ID => Ok(Chip::Esp32c6),
-            esp32h2::CHIP_ID => Ok(Chip::Esp32h2),
-            esp32p4::CHIP_ID => Ok(Chip::Esp32p4),
-            esp32s2::CHIP_ID => Ok(Chip::Esp32s2),
-            esp32s3::CHIP_ID => Ok(Chip::Esp32s3),
+            // esp32c2::CHIP_ID => Ok(Chip::Esp32c2),
+            // esp32c3::CHIP_ID => Ok(Chip::Esp32c3),
+            // esp32c5::CHIP_ID => Ok(Chip::Esp32c5),
+            // esp32c6::CHIP_ID => Ok(Chip::Esp32c6),
+            // esp32h2::CHIP_ID => Ok(Chip::Esp32h2),
+            // esp32p4::CHIP_ID => Ok(Chip::Esp32p4),
+            // esp32s2::CHIP_ID => Ok(Chip::Esp32s2),
+            // esp32s3::CHIP_ID => Ok(Chip::Esp32s3),
             _ => Err(Error::ChipDetectError(format!(
                 "unrecognized chip ID: {value}"
             ))),
@@ -406,14 +406,14 @@ pub trait Target: ReadEFuse {
     fn mac_address(&self, connection: &mut Connection) -> Result<String, Error> {
         let (mac0_field, mac1_field) = match self.chip() {
             Chip::Esp32 => (self::efuse::esp32::MAC0, self::efuse::esp32::MAC1),
-            Chip::Esp32c2 => (self::efuse::esp32c2::MAC0, self::efuse::esp32c2::MAC1),
-            Chip::Esp32c3 => (self::efuse::esp32c3::MAC0, self::efuse::esp32c3::MAC1),
-            Chip::Esp32c5 => (self::efuse::esp32c5::MAC0, self::efuse::esp32c5::MAC1),
-            Chip::Esp32c6 => (self::efuse::esp32c6::MAC0, self::efuse::esp32c6::MAC1),
-            Chip::Esp32h2 => (self::efuse::esp32h2::MAC0, self::efuse::esp32h2::MAC1),
-            Chip::Esp32p4 => (self::efuse::esp32p4::MAC0, self::efuse::esp32p4::MAC1),
-            Chip::Esp32s2 => (self::efuse::esp32s2::MAC0, self::efuse::esp32s2::MAC1),
-            Chip::Esp32s3 => (self::efuse::esp32s3::MAC0, self::efuse::esp32s3::MAC1),
+            // Chip::Esp32c2 => (self::efuse::esp32c2::MAC0, self::efuse::esp32c2::MAC1),
+            // Chip::Esp32c3 => (self::efuse::esp32c3::MAC0, self::efuse::esp32c3::MAC1),
+            // Chip::Esp32c5 => (self::efuse::esp32c5::MAC0, self::efuse::esp32c5::MAC1),
+            // Chip::Esp32c6 => (self::efuse::esp32c6::MAC0, self::efuse::esp32c6::MAC1),
+            // Chip::Esp32h2 => (self::efuse::esp32h2::MAC0, self::efuse::esp32h2::MAC1),
+            // Chip::Esp32p4 => (self::efuse::esp32p4::MAC0, self::efuse::esp32p4::MAC1),
+            // Chip::Esp32s2 => (self::efuse::esp32s2::MAC0, self::efuse::esp32s2::MAC1),
+            // Chip::Esp32s3 => (self::efuse::esp32s3::MAC0, self::efuse::esp32s3::MAC1),
         };
 
         let mac0 = self.read_efuse(connection, mac0_field)?;

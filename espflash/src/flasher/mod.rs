@@ -25,25 +25,18 @@ pub(crate) use self::stubs::{FLASH_SECTOR_SIZE, FLASH_WRITE_SIZE};
 pub use crate::targets::flash_target::ProgressCallbacks;
 use crate::{
     Error,
-    image_format::ImageFormatArgs,
     targets::{Chip, XtalFrequency},
 };
 #[cfg(feature = "serialport")]
 use crate::{
     connection::{
-        Connection,
-        Port,
-        command::{Command, CommandType},
-        reset::{ResetAfterOperation, ResetBeforeOperation},
+        command::{Command, CommandType}, reset::{ResetAfterOperation, ResetBeforeOperation}, Connection, Port
     },
     error::{ConnectionError, ResultExt as _},
     flasher::stubs::{
-        CHIP_DETECT_MAGIC_REG_ADDR,
-        DEFAULT_TIMEOUT,
-        EXPECTED_STUB_HANDSHAKE,
-        FlashStub,
+        FlashStub, CHIP_DETECT_MAGIC_REG_ADDR, DEFAULT_TIMEOUT, EXPECTED_STUB_HANDSHAKE
     },
-    image_format::{Segment, ram_segments, rom_segments},
+    image_format::{ram_segments, rom_segments, ImageFormat, Segment},
 };
 
 #[cfg(feature = "serialport")]
@@ -473,7 +466,6 @@ pub struct FlashData {
     pub flash_settings: FlashSettings,
     pub min_chip_rev: u16,
     pub mmu_page_size: Option<u32>,
-    pub format_args: ImageFormatArgs,
 }
 
 impl FlashData {
@@ -481,13 +473,11 @@ impl FlashData {
         flash_settings: FlashSettings,
         min_chip_rev: u16,
         mmu_page_size: Option<u32>,
-        format_args: ImageFormatArgs,
     ) -> Result<Self, Error> {
         Ok(FlashData {
             flash_settings,
             min_chip_rev,
             mmu_page_size,
-            format_args,
         })
     }
 }
@@ -1021,26 +1011,13 @@ impl Flasher {
     /// Load an ELF image to flash and execute it
     pub fn load_elf_to_flash(
         &mut self,
-        elf_data: &[u8],
-        flash_data: FlashData,
+        image: ImageFormat<'_>,
         mut progress: Option<&mut dyn ProgressCallbacks>,
-        xtal_freq: XtalFrequency,
     ) -> Result<(), Error> {
         let mut target =
             self.chip
                 .flash_target(self.spi_params, self.use_stub, self.verify, self.skip);
         target.begin(&mut self.connection).flashing()?;
-
-        let chip_revision = Some(
-            self.chip
-                .into_target()
-                .chip_revision(&mut self.connection)?,
-        );
-
-        let image =
-            self.chip
-                .into_target()
-                .flash_image(elf_data, flash_data, chip_revision, xtal_freq)?;
 
         // When the `cli` feature is enabled, display the image size information.
         #[cfg(feature = "cli")]
@@ -1138,16 +1115,16 @@ impl Flasher {
         };
 
         let target = self.chip.into_target();
-        let xtal_freq = target.crystal_freq(&mut self.connection)?;
+        // let xtal_freq = target.crystal_freq(&mut self.connection)?;
 
         // Probably this is just a temporary solution until the next chip revision.
         //
         // The ROM code thinks it uses a 40 MHz XTAL. Recompute the baud rate in order
         // to trick the ROM code to set the correct baud rate for a 26 MHz XTAL.
         let mut new_baud = speed;
-        if self.chip == Chip::Esp32c2 && !self.use_stub && xtal_freq == XtalFrequency::_26Mhz {
-            new_baud = new_baud * 40 / 26;
-        }
+        // if self.chip == Chip::Esp32c2 && !self.use_stub && xtal_freq == XtalFrequency::_26Mhz {
+        //     new_baud = new_baud * 40 / 26;
+        // }
 
         self.connection
             .with_timeout(CommandType::ChangeBaudrate.timeout(), |connection| {

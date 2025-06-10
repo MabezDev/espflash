@@ -352,6 +352,7 @@ fn flash(args: FlashArgs, config: &Config) -> Result<()> {
     } else {
         let flash_data = make_flash_data(
             args.flash_args.image,
+            target_xtal_freq,
             &flash_config,
             config,
             args.format,
@@ -588,6 +589,7 @@ fn save_image(args: SaveImageArgs, config: &Config) -> Result<()> {
 
     let flash_data = make_flash_data(
         args.save_image_args.image,
+        target_xtal_freq,
         &flash_config,
         config,
         args.format,
